@@ -12,7 +12,11 @@ public class ApexCircuit : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
-				"InputCore"
+				"InputCore",
+				"EnhancedInput",
+				"ProceduralMeshComponent",
+				"Json",
+				"JsonUtilities"
 			});
 	}
 }
