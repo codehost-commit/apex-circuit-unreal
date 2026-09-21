@@ -16,7 +16,11 @@ public class ApexCircuit : ModuleRules
 				"EnhancedInput",
 				"ProceduralMeshComponent",
 				"Json",
-				"JsonUtilities"
+				"JsonUtilities",
+				"UMG",
+				"Slate",
+				"SlateCore",
+				"AudioMixer"
 			});
 	}
 }

@@ -4,6 +4,7 @@
 #include "ApexRaceDirector.h"
 #include "ApexTelemetryComponent.h"
 #include "ApexTrackActor.h"
+#include "Components/AudioComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -101,6 +102,15 @@ AApexFormulaCar::AApexFormulaCar()
 	CockpitCamera->bUsePawnControlRotation = true;
 
 	Telemetry = CreateDefaultSubobject<UApexTelemetryComponent>(TEXT("Telemetry"));
+	EngineLowAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineLowAudio"));
+	EngineLowAudio->SetupAttachment(Chassis);
+	EngineLowAudio->bAutoActivate = false;
+	EngineMidAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineMidAudio"));
+	EngineMidAudio->SetupAttachment(Chassis);
+	EngineMidAudio->bAutoActivate = false;
+	EngineHighAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineHighAudio"));
+	EngineHighAudio->SetupAttachment(Chassis);
+	EngineHighAudio->bAutoActivate = false;
 
 	static ConstructorHelpers::FObjectFinder<UApexCarTuningDataAsset> TuningFinder(TEXT("/Game/Data/DA_ApexFormulaCarTuning.DA_ApexFormulaCarTuning"));
 	if (TuningFinder.Succeeded())
@@ -138,6 +148,13 @@ void AApexFormulaCar::BeginPlay()
 	Chassis->SetCenterOfMass(Tuning->CenterOfMassOffsetCm);
 	EngineRpm = Tuning->IdleRpm;
 	ConfigureInputActions();
+	EngineLowAudio->SetSound(LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/Engine/f1_engine_low.f1_engine_low")));
+	EngineMidAudio->SetSound(LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/Engine/f1_engine_mid.f1_engine_mid")));
+	EngineHighAudio->SetSound(LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/Engine/f1_engine_high.f1_engine_high")));
+	for (UAudioComponent* Audio : {EngineLowAudio.Get(), EngineMidAudio.Get(), EngineHighAudio.Get()})
+	{
+		if (Audio != nullptr && Audio->GetSound() != nullptr) Audio->Play();
+	}
 	UpdateWheelVisuals();
 	UE_LOG(LogTemp, Display, TEXT("APEX Formula Car initialized: %.0f kg, %.0f hp-equivalent ICE target, %d forward gears."), Tuning->MassKg, Tuning->PeakPowerWatts / 745.7f, Tuning->GearRatios.Num());
 }
@@ -148,6 +165,7 @@ void AApexFormulaCar::Tick(float DeltaSeconds)
 	ApplyVehicleForces(DeltaSeconds);
 	UpdateWheelVisuals();
 	UpdateTelemetry(DeltaSeconds);
+	UpdateEngineAudio();
 }
 
 void AApexFormulaCar::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -206,6 +224,34 @@ void AApexFormulaCar::SetSafeProgressCm(float InSafeProgressCm)
 	SafeProgressCm = InSafeProgressCm;
 }
 
+void AApexFormulaCar::SetRaceEnabled(bool bEnabled)
+{
+	bRaceEnabled = bEnabled;
+	if (!bRaceEnabled)
+	{
+		ThrottleInput = 0.0f;
+		BrakeInput = 1.0f;
+		bDrsInput = false;
+		bErsInput = false;
+	}
+}
+
+void AApexFormulaCar::SetAiControl(float InThrottle, float InBrake, float InSteering, bool bInDrs, bool bInErs)
+{
+	bAiControlled = true;
+	ThrottleInput = bRaceEnabled ? FMath::Clamp(InThrottle, 0.0f, 1.0f) : 0.0f;
+	BrakeInput = bRaceEnabled ? FMath::Clamp(InBrake, 0.0f, 1.0f) : 1.0f;
+	SteeringInput = FMath::Clamp(InSteering, -1.0f, 1.0f);
+	bDrsInput = bRaceEnabled && bInDrs;
+	bErsInput = bRaceEnabled && bInErs;
+}
+
+void AApexFormulaCar::SetDriverIdentity(const FString& InName, int32 InNumber)
+{
+	DriverName = InName;
+	CarNumber = InNumber;
+}
+
 void AApexFormulaCar::ResetVehicle()
 {
 	if (!Track.IsValid())
@@ -216,6 +262,18 @@ void AApexFormulaCar::ResetVehicle()
 	const FTransform ResetTransform = Track->GetSpawnTransformAtDistance(SafeProgressCm);
 	Chassis->SetSimulatePhysics(false);
 	SetActorTransform(ResetTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	Chassis->SetPhysicsLinearVelocity(FVector::ZeroVector);
+	Chassis->SetPhysicsAngularVelocityInRadians(FVector::ZeroVector);
+	Chassis->SetSimulatePhysics(true);
+	CurrentGear = 1;
+	EngineRpm = ResolveTuning()->IdleRpm;
+	bDrsOpen = false;
+}
+
+void AApexFormulaCar::ResetToTransform(const FTransform& Transform)
+{
+	Chassis->SetSimulatePhysics(false);
+	SetActorTransform(Transform, false, nullptr, ETeleportType::TeleportPhysics);
 	Chassis->SetPhysicsLinearVelocity(FVector::ZeroVector);
 	Chassis->SetPhysicsAngularVelocityInRadians(FVector::ZeroVector);
 	Chassis->SetSimulatePhysics(true);
@@ -504,6 +562,15 @@ void AApexFormulaCar::UpdateWheelVisuals()
 	}
 }
 
+void AApexFormulaCar::UpdateEngineAudio()
+{
+	const float RpmFraction = FMath::Clamp((EngineRpm - 4500.0f) / 10500.0f, 0.0f, 1.0f);
+	const float Load = FMath::Max(ThrottleInput, 0.18f);
+	if (EngineLowAudio) { EngineLowAudio->SetVolumeMultiplier((1.0f - RpmFraction) * Load); EngineLowAudio->SetPitchMultiplier(FMath::Lerp(0.78f, 1.28f, RpmFraction)); }
+	if (EngineMidAudio) { EngineMidAudio->SetVolumeMultiplier((1.0f - FMath::Abs(RpmFraction - .5f) * 2.0f) * Load); EngineMidAudio->SetPitchMultiplier(FMath::Lerp(0.75f, 1.32f, RpmFraction)); }
+	if (EngineHighAudio) { EngineHighAudio->SetVolumeMultiplier(RpmFraction * Load); EngineHighAudio->SetPitchMultiplier(FMath::Lerp(0.72f, 1.36f, RpmFraction)); }
+}
+
 void AApexFormulaCar::SetActiveCamera(int32 CameraIndex)
 {
 	ActiveCameraIndex = CameraIndex % 3;
@@ -524,27 +591,42 @@ void AApexFormulaCar::LookUp(float Value)
 
 void AApexFormulaCar::SetThrottle(const FInputActionValue& Value)
 {
-	ThrottleInput = FMath::Clamp(Value.Get<float>(), 0.0f, 1.0f);
+	if (!bAiControlled)
+	{
+		ThrottleInput = bRaceEnabled ? FMath::Clamp(Value.Get<float>(), 0.0f, 1.0f) : 0.0f;
+	}
 }
 
 void AApexFormulaCar::SetBrake(const FInputActionValue& Value)
 {
-	BrakeInput = FMath::Clamp(Value.Get<float>(), 0.0f, 1.0f);
+	if (!bAiControlled)
+	{
+		BrakeInput = bRaceEnabled ? FMath::Clamp(Value.Get<float>(), 0.0f, 1.0f) : 1.0f;
+	}
 }
 
 void AApexFormulaCar::SetSteering(const FInputActionValue& Value)
 {
-	SteeringInput = FMath::Clamp(Value.Get<float>(), -1.0f, 1.0f);
+	if (!bAiControlled)
+	{
+		SteeringInput = FMath::Clamp(Value.Get<float>(), -1.0f, 1.0f);
+	}
 }
 
 void AApexFormulaCar::SetDrs(const FInputActionValue& Value)
 {
-	bDrsInput = Value.Get<bool>();
+	if (!bAiControlled)
+	{
+		bDrsInput = bRaceEnabled && Value.Get<bool>();
+	}
 }
 
 void AApexFormulaCar::SetErs(const FInputActionValue& Value)
 {
-	bErsInput = Value.Get<bool>();
+	if (!bAiControlled)
+	{
+		bErsInput = bRaceEnabled && Value.Get<bool>();
+	}
 }
 
 void AApexFormulaCar::ToggleCamera(const FInputActionValue& Value)
@@ -559,5 +641,8 @@ void AApexFormulaCar::TriggerReset(const FInputActionValue& Value)
 
 void AApexFormulaCar::TogglePause(const FInputActionValue& Value)
 {
-	UGameplayStatics::SetGamePaused(this, !UGameplayStatics::IsGamePaused(this));
+	if (RaceDirector.IsValid())
+	{
+		RaceDirector->TogglePause();
+	}
 }

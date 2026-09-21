@@ -1,8 +1,10 @@
 #include "ApexCircuitGameMode.h"
 
 #include "ApexDebugHUD.h"
+#include "ApexAiDriverComponent.h"
 #include "ApexFormulaCar.h"
 #include "ApexRaceDirector.h"
+#include "ApexRaceHUDWidget.h"
 #include "ApexTrackActor.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -71,5 +73,43 @@ void AApexCircuitGameMode::SpawnPlayerCar()
 		RaceDirector->Initialize(Track, PlayerCar);
 		PlayerCar->SetRaceDirector(RaceDirector);
 	}
-	UE_LOG(LogTemp, Display, TEXT("APEX Phase 1 ready: player car spawned on the original circuit start/finish seam."));
+	SpawnOpponentField();
+	if (APlayerController* Controller = GetWorld()->GetFirstPlayerController())
+	{
+		UApexRaceHUDWidget* RaceHud = CreateWidget<UApexRaceHUDWidget>(Controller, UApexRaceHUDWidget::StaticClass());
+		if (RaceHud != nullptr)
+		{
+			RaceHud->AddToViewport(10);
+			Controller->bShowMouseCursor = true;
+			FInputModeGameAndUI InputMode;
+			InputMode.SetHideCursorDuringCapture(false);
+			Controller->SetInputMode(InputMode);
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("APEX Phase 2 ready: player, deterministic opponent field and session director spawned."));
+}
+
+void AApexCircuitGameMode::SpawnOpponentField()
+{
+	if (!Track || !RaceDirector) return;
+	TArray<AApexFormulaCar*> Field;
+	Field.Add(PlayerCar);
+	static const TCHAR* Names[] = {TEXT("M. VEGA"), TEXT("J. PARK"), TEXT("L. SATO"), TEXT("R. KIM"), TEXT("A. MORENO"), TEXT("I. BLAKE"), TEXT("T. RAHMAN")};
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Names); ++Index)
+	{
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		const float Distance = FMath::Fmod(Track->GetTrackLengthCm() - 2450.0f - Index * 1100.0f, Track->GetTrackLengthCm());
+		AApexFormulaCar* Opponent = GetWorld()->SpawnActor<AApexFormulaCar>(AApexFormulaCar::StaticClass(), Track->GetSpawnTransformAtDistance(Distance, Index % 2 ? 280.0f : -280.0f), Params);
+		if (!Opponent) continue;
+		Opponent->SetTrack(Track);
+		Opponent->SetDriverIdentity(Names[Index], 12 + Index);
+		Opponent->SetRaceEnabled(false);
+		UApexAiDriverComponent* Driver = NewObject<UApexAiDriverComponent>(Opponent, *FString::Printf(TEXT("ApexAiDriver_%d"), Index));
+		Driver->RegisterComponent();
+		Driver->Initialize(Track, 0.975f + Index * 0.004f, 2026 + Index);
+		OpponentCars.Add(Opponent);
+		Field.Add(Opponent);
+	}
+	RaceDirector->SetField(Field);
 }

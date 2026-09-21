@@ -23,6 +23,7 @@ public:
 
 private:
 	void SpawnPlayerCar();
+	void SpawnOpponentField();
 
 	UPROPERTY(Transient)
 	TObjectPtr<AApexTrackActor> Track;
@@ -32,4 +33,7 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AApexRaceDirector> RaceDirector;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AApexFormulaCar>> OpponentCars;
 };

@@ -9,6 +9,7 @@ class AApexRaceDirector;
 class AApexTrackActor;
 class UApexCarTuningDataAsset;
 class UBoxComponent;
+class UAudioComponent;
 class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
@@ -45,6 +46,10 @@ public:
 	void SetRaceDirector(AApexRaceDirector* InRaceDirector);
 	void SetDrsAvailability(bool bInDrsAvailability);
 	void SetSafeProgressCm(float InSafeProgressCm);
+	void SetRaceEnabled(bool bEnabled);
+	void SetAiControl(float InThrottle, float InBrake, float InSteering, bool bInDrs, bool bInErs);
+	void SetDriverIdentity(const FString& InName, int32 InNumber);
+	void ResetToTransform(const FTransform& Transform);
 
 	UFUNCTION(BlueprintCallable, Category = "Apex|Car")
 	void ResetVehicle();
@@ -81,6 +86,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Apex|Car")
 	EApexSurface GetCurrentSurface() const { return CurrentSurface; }
+	bool IsRaceEnabled() const { return bRaceEnabled; }
+	const FString& GetDriverName() const { return DriverName; }
+	int32 GetCarNumber() const { return CarNumber; }
 
 	const TArray<FApexWheelState>& GetWheelStates() const { return Wheels; }
 	UApexTelemetryComponent* GetTelemetryComponent() const { return Telemetry; }
@@ -93,6 +101,7 @@ private:
 	void UpdatePowertrain(float DeltaSeconds, float ForwardSpeedMps);
 	void UpdateTelemetry(float DeltaSeconds);
 	void UpdateWheelVisuals();
+	void UpdateEngineAudio();
 	void SetActiveCamera(int32 CameraIndex);
 	void Turn(float Value);
 	void LookUp(float Value);
@@ -131,6 +140,13 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Car")
 	TObjectPtr<UApexTelemetryComponent> Telemetry;
+
+	UPROPERTY(VisibleAnywhere, Category = "Apex|Audio")
+	TObjectPtr<UAudioComponent> EngineLowAudio;
+	UPROPERTY(VisibleAnywhere, Category = "Apex|Audio")
+	TObjectPtr<UAudioComponent> EngineMidAudio;
+	UPROPERTY(VisibleAnywhere, Category = "Apex|Audio")
+	TObjectPtr<UAudioComponent> EngineHighAudio;
 
 	UPROPERTY(EditAnywhere, Category = "Apex|Car")
 	TObjectPtr<UApexCarTuningDataAsset> TuningAsset;
@@ -183,5 +199,9 @@ private:
 	bool bErsInput = false;
 	bool bDrsAvailable = false;
 	bool bDrsOpen = false;
+	bool bRaceEnabled = true;
+	bool bAiControlled = false;
+	FString DriverName = TEXT("PLAYER");
+	int32 CarNumber = 1;
 	EApexSurface CurrentSurface = EApexSurface::Asphalt;
 };
