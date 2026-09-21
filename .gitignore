@@ -1,0 +1,23 @@
+# Unreal-generated output
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# IDE and local machine files
+.vs/
+.idea/
+.vscode/
+*.sln
+*.suo
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
+# Unreal user settings
+Config/*EditorPerProjectUserSettings.ini
+
+# OS files
+.DS_Store
+Thumbs.db
