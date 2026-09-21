@@ -20,7 +20,8 @@ public class ApexCircuit : ModuleRules
 				"UMG",
 				"Slate",
 				"SlateCore",
-				"AudioMixer"
+				"AudioMixer",
+				"Niagara"
 			});
 	}
 }

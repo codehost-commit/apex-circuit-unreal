@@ -25,6 +25,9 @@ private:
 	UFUNCTION() void Restart();
 	UFUNCTION() void Recover();
 	UFUNCTION() void TogglePause();
+	UFUNCTION() void ToggleAbs();
+	UFUNCTION() void ToggleTraction();
+	UFUNCTION() void CycleErsStrategy();
 	void StartMode(uint8 Mode);
 	void SetText(UTextBlock* Target, const FString& Value) const;
 
@@ -34,6 +37,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> TowerText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> StartLightsText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> MessageText;
+	UPROPERTY(Transient) TObjectPtr<UTextBlock> ConditionText;
+	UPROPERTY(Transient) TObjectPtr<UTextBlock> WeatherText;
 	UPROPERTY(Transient) TObjectPtr<UTextBlock> MenuTitle;
 	UPROPERTY(Transient) TArray<TObjectPtr<UButton>> MenuButtons;
 };

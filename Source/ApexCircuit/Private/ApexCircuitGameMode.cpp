@@ -3,12 +3,17 @@
 #include "ApexDebugHUD.h"
 #include "ApexAiDriverComponent.h"
 #include "ApexFormulaCar.h"
+#include "ApexPresentationDirector.h"
 #include "ApexRaceDirector.h"
 #include "ApexRaceHUDWidget.h"
 #include "ApexTrackActor.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Engine/SkyLight.h"
+#include "Components/SkyAtmosphereComponent.h"
 
 AApexCircuitGameMode::AApexCircuitGameMode()
 {
@@ -19,6 +24,15 @@ AApexCircuitGameMode::AApexCircuitGameMode()
 void AApexCircuitGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+	for (UClass* LegacyClass : {ADirectionalLight::StaticClass(), ASkyLight::StaticClass(), ASkyAtmosphere::StaticClass(), AExponentialHeightFog::StaticClass()})
+	{
+		TArray<AActor*> LegacyActors;
+		UGameplayStatics::GetAllActorsOfClass(this, LegacyClass, LegacyActors);
+		for (AActor* Actor : LegacyActors)
+		{
+			Actor->Destroy();
+		}
+	}
 
 	Track = Cast<AApexTrackActor>(UGameplayStatics::GetActorOfClass(this, AApexTrackActor::StaticClass()));
 	if (Track == nullptr)
@@ -74,6 +88,11 @@ void AApexCircuitGameMode::SpawnPlayerCar()
 		PlayerCar->SetRaceDirector(RaceDirector);
 	}
 	SpawnOpponentField();
+	PresentationDirector = GetWorld()->SpawnActor<AApexPresentationDirector>(AApexPresentationDirector::StaticClass(), FTransform::Identity, SpawnParameters);
+	if (PresentationDirector != nullptr)
+	{
+		PresentationDirector->Initialize(Track, PlayerCar);
+	}
 	if (APlayerController* Controller = GetWorld()->GetFirstPlayerController())
 	{
 		UApexRaceHUDWidget* RaceHud = CreateWidget<UApexRaceHUDWidget>(Controller, UApexRaceHUDWidget::StaticClass());
@@ -86,7 +105,7 @@ void AApexCircuitGameMode::SpawnPlayerCar()
 			Controller->SetInputMode(InputMode);
 		}
 	}
-	UE_LOG(LogTemp, Display, TEXT("APEX Phase 2 ready: player, deterministic opponent field and session director spawned."));
+	UE_LOG(LogTemp, Display, TEXT("APEX Phase 3 ready: RB14 field, photoreal circuit presentation, weather and race systems spawned."));
 }
 
 void AApexCircuitGameMode::SpawnOpponentField()

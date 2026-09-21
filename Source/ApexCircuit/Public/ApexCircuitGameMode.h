@@ -6,6 +6,7 @@
 class AApexFormulaCar;
 class AApexRaceDirector;
 class AApexTrackActor;
+class AApexPresentationDirector;
 
 UCLASS()
 class APEXCIRCUIT_API AApexCircuitGameMode : public AGameModeBase
@@ -20,6 +21,7 @@ public:
 	AApexTrackActor* GetTrack() const { return Track; }
 	AApexFormulaCar* GetPlayerCar() const { return PlayerCar; }
 	AApexRaceDirector* GetRaceDirector() const { return RaceDirector; }
+	AApexPresentationDirector* GetPresentationDirector() const { return PresentationDirector; }
 
 private:
 	void SpawnPlayerCar();
@@ -33,6 +35,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<AApexRaceDirector> RaceDirector;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AApexPresentationDirector> PresentationDirector;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AApexFormulaCar>> OpponentCars;

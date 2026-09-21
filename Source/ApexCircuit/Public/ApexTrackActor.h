@@ -10,6 +10,7 @@ class UProceduralMeshComponent;
 class USceneComponent;
 class USplineComponent;
 class UStaticMeshComponent;
+class UMaterialInstanceDynamic;
 
 UCLASS()
 class APEXCIRCUIT_API AApexTrackActor : public AActor
@@ -45,6 +46,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Apex|Track")
 	bool IsDistanceInDrsZone(float DistanceCm) const;
 
+	/** Drives the shared wet-surface response for road, kerb, grass and gravel. */
+	UFUNCTION(BlueprintCallable, Category = "Apex|Track")
+	void SetWetness(float InWetness);
+
+	UFUNCTION(BlueprintPure, Category = "Apex|Track")
+	float GetWetness() const { return Wetness; }
+
 	const TArray<float>& GetCheckpointDistancesCm() const { return CheckpointDistancesCm; }
 	const TArray<float>& GetSectorDistancesCm() const { return SectorDistancesCm; }
 	const TArray<FApexDrsZone>& GetDrsZones() const { return DrsZones; }
@@ -75,6 +83,9 @@ private:
 	TObjectPtr<UProceduralMeshComponent> KerbMesh;
 
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Track")
+	TObjectPtr<UProceduralMeshComponent> GravelMesh;
+
+	UPROPERTY(VisibleAnywhere, Category = "Apex|Track")
 	TObjectPtr<UBoxComponent> GroundCollision;
 
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Track")
@@ -82,6 +93,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Track")
 	TObjectPtr<UStaticMeshComponent> StartFinishVisual;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> SurfaceMaterials;
 
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Track")
 	float TrackLengthCm = 0.0f;
@@ -98,6 +112,7 @@ private:
 	FVector2D SourceOrigin = FVector2D(1600.0f, 1500.0f);
 	float MetresPerSourceUnit = 0.14f;
 	bool bTrackBuilt = false;
+	float Wetness = 0.0f;
 
 	TArray<FVector2D> SourcePoints;
 	TArray<FVector> CenterlinePoints;

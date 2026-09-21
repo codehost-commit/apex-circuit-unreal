@@ -13,6 +13,8 @@ class UAudioComponent;
 class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
+class UPrimitiveComponent;
+class UNiagaraComponent;
 class USpringArmComponent;
 class UStaticMeshComponent;
 class UApexTelemetryComponent;
@@ -85,6 +87,27 @@ public:
 	float GetEnergyMj() const { return EnergyMj; }
 
 	UFUNCTION(BlueprintPure, Category = "Apex|Car")
+	float GetFuelKg() const { return FuelKg; }
+
+	UFUNCTION(BlueprintPure, Category = "Apex|Car")
+	float GetTyreTemperatureC() const { return TyreTemperatureC; }
+
+	UFUNCTION(BlueprintPure, Category = "Apex|Car")
+	float GetTyreWearPercent() const { return TyreWear * 100.0f; }
+
+	UFUNCTION(BlueprintPure, Category = "Apex|Car")
+	float GetDamagePercent() const { return Damage * 100.0f; }
+	bool IsAbsEnabled() const { return bAbsEnabled; }
+	bool IsTractionControlEnabled() const { return bTractionControlEnabled; }
+	int32 GetErsStrategy() const { return ErsStrategy; }
+	FString GetErsStrategyName() const;
+	bool IsReplayPlaying() const { return bReplayPlaying; }
+	bool IsPhotoMode() const { return bPhotoMode; }
+	void ToggleAbsAssist();
+	void ToggleTractionAssist();
+	void CycleErsStrategy();
+
+	UFUNCTION(BlueprintPure, Category = "Apex|Car")
 	EApexSurface GetCurrentSurface() const { return CurrentSurface; }
 	bool IsRaceEnabled() const { return bRaceEnabled; }
 	const FString& GetDriverName() const { return DriverName; }
@@ -102,6 +125,10 @@ private:
 	void UpdateTelemetry(float DeltaSeconds);
 	void UpdateWheelVisuals();
 	void UpdateEngineAudio();
+	void UpdateVehicleCondition(float DeltaSeconds);
+
+	UFUNCTION()
+	void HandleChassisHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
 	void SetActiveCamera(int32 CameraIndex);
 	void Turn(float Value);
 	void LookUp(float Value);
@@ -113,6 +140,13 @@ private:
 	void ToggleCamera(const FInputActionValue& Value);
 	void TriggerReset(const FInputActionValue& Value);
 	void TogglePause(const FInputActionValue& Value);
+	void TogglePhotoMode(const FInputActionValue& Value);
+	void TriggerReplay(const FInputActionValue& Value);
+	void ToggleAbsInput(const FInputActionValue& Value);
+	void ToggleTractionInput(const FInputActionValue& Value);
+	void CycleErsStrategyInput(const FInputActionValue& Value);
+	void RecordReplay(float DeltaSeconds);
+	void UpdateReplay(float DeltaSeconds);
 
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Car")
 	TObjectPtr<UBoxComponent> Chassis;
@@ -148,6 +182,12 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "Apex|Audio")
 	TObjectPtr<UAudioComponent> EngineHighAudio;
 
+	UPROPERTY(VisibleAnywhere, Category = "Apex|FX")
+	TObjectPtr<UNiagaraComponent> WheelSprayFx;
+
+	UPROPERTY(VisibleAnywhere, Category = "Apex|FX")
+	TObjectPtr<UNiagaraComponent> TyreBurstFx;
+
 	UPROPERTY(EditAnywhere, Category = "Apex|Car")
 	TObjectPtr<UApexCarTuningDataAsset> TuningAsset;
 
@@ -181,6 +221,21 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PauseAction;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PhotoModeAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ReplayAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ToggleAbsAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ToggleTractionAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ErsStrategyAction;
+
 	TWeakObjectPtr<AApexTrackActor> Track;
 	TWeakObjectPtr<AApexRaceDirector> RaceDirector;
 	TArray<FApexWheelState> Wheels;
@@ -193,6 +248,10 @@ private:
 	float EnergyMj = 4.0f;
 	float SafeProgressCm = 0.0f;
 	float TelemetryAccumulator = 0.0f;
+	float FuelKg = 32.0f;
+	float TyreTemperatureC = 82.0f;
+	float TyreWear = 0.0f;
+	float Damage = 0.0f;
 	int32 CurrentGear = 1;
 	int32 ActiveCameraIndex = 0;
 	bool bDrsInput = false;
@@ -201,6 +260,15 @@ private:
 	bool bDrsOpen = false;
 	bool bRaceEnabled = true;
 	bool bAiControlled = false;
+	bool bAbsEnabled = true;
+	bool bTractionControlEnabled = true;
+	bool bReplayPlaying = false;
+	bool bPhotoMode = false;
+	int32 ErsStrategy = 0;
+	float ReplayRecordAccumulator = 0.0f;
+	float ReplayPlaybackAccumulator = 0.0f;
+	int32 ReplayPlaybackIndex = 0;
+	TArray<FTransform> ReplayFrames;
 	FString DriverName = TEXT("PLAYER");
 	int32 CarNumber = 1;
 	EApexSurface CurrentSurface = EApexSurface::Asphalt;

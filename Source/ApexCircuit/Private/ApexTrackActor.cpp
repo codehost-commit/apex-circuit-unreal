@@ -5,6 +5,8 @@
 #include "Components/SplineComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ProceduralMeshComponent.h"
@@ -70,6 +72,10 @@ AApexTrackActor::AApexTrackActor()
 	KerbMesh->SetCollisionObjectType(ECC_WorldStatic);
 	KerbMesh->SetCollisionResponseToAllChannels(ECR_Block);
 	KerbMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+	GravelMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("GravelMesh"));
+	GravelMesh->SetupAttachment(SceneRoot);
+	GravelMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	GroundCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("GroundCollision"));
 	GroundCollision->SetupAttachment(SceneRoot);
@@ -386,6 +392,38 @@ void AApexTrackActor::BuildSurfaceMeshes()
 		KerbMesh->CreateMeshSection_LinearColor(0, KerbVertices, KerbTriangles, KerbNormals, KerbUvs, KerbColors, KerbTangents, true);
 	}
 
+	TArray<FVector> GravelVertices;
+	TArray<int32> GravelTriangles;
+	TArray<FVector> GravelNormals;
+	TArray<FVector2D> GravelUvs;
+	TArray<FLinearColor> GravelColors;
+	TArray<FProcMeshTangent> GravelTangents;
+	for (const TArray<FVector2D>& Polygon : GravelPolygons)
+	{
+		if (Polygon.Num() < 3)
+		{
+			continue;
+		}
+		const int32 Base = GravelVertices.Num();
+		for (const FVector2D& Point : Polygon)
+		{
+			GravelVertices.Add(FVector(Point.X, Point.Y, 2.0f));
+			GravelNormals.Add(FVector::UpVector);
+			GravelUvs.Add(Point / 450.0f);
+			GravelColors.Add(FLinearColor::White);
+			GravelTangents.Add(FProcMeshTangent(FVector::ForwardVector, false));
+		}
+		for (int32 Vertex = 1; Vertex + 1 < Polygon.Num(); ++Vertex)
+		{
+			GravelTriangles.Append({Base, Base + Vertex, Base + Vertex + 1});
+		}
+	}
+	GravelMesh->ClearAllMeshSections();
+	if (!GravelVertices.IsEmpty())
+	{
+		GravelMesh->CreateMeshSection_LinearColor(0, GravelVertices, GravelTriangles, GravelNormals, GravelUvs, GravelColors, GravelTangents, false);
+	}
+
 	FVector MinBounds(FLT_MAX);
 	FVector MaxBounds(-FLT_MAX);
 	for (const FVector& Point : CenterlinePoints)
@@ -408,6 +446,38 @@ void AApexTrackActor::BuildSurfaceMeshes()
 	StartFinishVisual->SetRelativeLocation(StartLocation + FVector::UpVector * 2.0f);
 	StartFinishVisual->SetRelativeRotation(FRotationMatrix::MakeFromXY(StartDirection, StartLateral).Rotator());
 	StartFinishVisual->SetRelativeScale3D(FVector(0.12f, RoadHalfWidthCm * 2.0f / 100.0f, 0.025f));
+
+	SurfaceMaterials.Reset();
+	auto ApplyDynamicMaterial = [this](UPrimitiveComponent* Component, const TCHAR* AssetPath)
+	{
+		if (Component == nullptr)
+		{
+			return;
+		}
+		if (UMaterialInterface* Parent = LoadObject<UMaterialInterface>(nullptr, AssetPath))
+		{
+			UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Parent, this);
+			Dynamic->SetScalarParameterValue(TEXT("Wetness"), Wetness);
+			Component->SetMaterial(0, Dynamic);
+			SurfaceMaterials.Add(Dynamic);
+		}
+	};
+	ApplyDynamicMaterial(RoadMesh, TEXT("/Game/Art/Materials/M_ApexAsphalt.M_ApexAsphalt"));
+	ApplyDynamicMaterial(KerbMesh, TEXT("/Game/Art/Materials/M_ApexKerb.M_ApexKerb"));
+	ApplyDynamicMaterial(GravelMesh, TEXT("/Game/Art/Materials/M_ApexGravel.M_ApexGravel"));
+	ApplyDynamicMaterial(GroundVisual, TEXT("/Game/Art/Materials/M_ApexGrass.M_ApexGrass"));
+}
+
+void AApexTrackActor::SetWetness(float InWetness)
+{
+	Wetness = FMath::Clamp(InWetness, 0.0f, 1.0f);
+	for (UMaterialInstanceDynamic* Material : SurfaceMaterials)
+	{
+		if (Material != nullptr)
+		{
+			Material->SetScalarParameterValue(TEXT("Wetness"), Wetness);
+		}
+	}
 }
 
 void AApexTrackActor::BuildTimingData()
